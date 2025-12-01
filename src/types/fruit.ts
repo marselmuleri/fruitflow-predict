@@ -59,12 +59,16 @@ export interface SystemStatus {
 }
 
 // ============================================
-// CLASS Buah - Contoh Penerapan OOP
+// 1. ENCAPSULATION - Menyembunyikan data internal
+// ============================================
+// Class Buah sebagai BASE CLASS (Parent Class)
 // ============================================
 export class Buah {
+  // Private properties - ENCAPSULATION
+  // Data disembunyikan dari akses langsung luar class
   private _id: string;
   private _timestamp: Date;
-  private _category: FruitCategory;
+  protected _category: FruitCategory; // Protected agar bisa diakses subclass
   private _rgbValues: RGBValue;
   private _confidence: number;
 
@@ -81,7 +85,7 @@ export class Buah {
     this._confidence = confidence;
   }
 
-  // Getter methods (Encapsulation)
+  // Getter methods - Akses terkontrol ke data private (ENCAPSULATION)
   get id(): string {
     return this._id;
   }
@@ -112,6 +116,24 @@ export class Buah {
     return labels[this._category];
   }
 
+  // ============================================
+  // 3. POLYMORPHISM - Method yang bisa di-override
+  // ============================================
+  // Method ini akan di-override oleh subclass
+  getDescription(): string {
+    return `Buah dengan ID ${this._id}`;
+  }
+
+  // Method polymorphic untuk aksi sortir
+  getSortingAction(): string {
+    return 'Menunggu klasifikasi...';
+  }
+
+  // Method polymorphic untuk prioritas
+  getPriority(): number {
+    return 0;
+  }
+
   // Method untuk konversi ke plain object
   toJSON(): FruitData {
     return {
@@ -121,6 +143,116 @@ export class Buah {
       rgbValues: this._rgbValues,
       confidence: this._confidence,
     };
+  }
+}
+
+// ============================================
+// 2. INHERITANCE - Pewarisan dari class Buah
+// ============================================
+
+// Subclass JerukMatang - Mewarisi semua dari Buah
+export class JerukMatang extends Buah {
+  private _sweetness: number; // Property tambahan khusus jeruk matang
+
+  constructor(id: string, rgbValues: RGBValue, confidence: number = 0.95, sweetness: number = 8) {
+    // Memanggil constructor parent class
+    super(id, FruitCategory.RIPE, rgbValues, confidence);
+    this._sweetness = sweetness;
+  }
+
+  // Getter untuk property tambahan
+  get sweetness(): number {
+    return this._sweetness;
+  }
+
+  // ============================================
+  // 3. POLYMORPHISM - Override method dari parent
+  // ============================================
+  override getDescription(): string {
+    return `🍊 Jeruk Matang (ID: ${this.id}) - Tingkat kemanisan: ${this._sweetness}/10`;
+  }
+
+  override getSortingAction(): string {
+    return '✅ Kirim ke jalur PACKING - Siap dijual';
+  }
+
+  override getPriority(): number {
+    return 1; // Prioritas tinggi untuk dijual
+  }
+}
+
+// Subclass JerukMentah - Mewarisi semua dari Buah
+export class JerukMentah extends Buah {
+  private _daysToRipe: number; // Estimasi hari sampai matang
+
+  constructor(id: string, rgbValues: RGBValue, confidence: number = 0.95, daysToRipe: number = 5) {
+    super(id, FruitCategory.UNRIPE, rgbValues, confidence);
+    this._daysToRipe = daysToRipe;
+  }
+
+  get daysToRipe(): number {
+    return this._daysToRipe;
+  }
+
+  // POLYMORPHISM - Override dengan behavior berbeda
+  override getDescription(): string {
+    return `🟢 Jeruk Mentah (ID: ${this.id}) - Estimasi matang: ${this._daysToRipe} hari lagi`;
+  }
+
+  override getSortingAction(): string {
+    return '📦 Kirim ke jalur PENYIMPANAN - Perlu pematangan';
+  }
+
+  override getPriority(): number {
+    return 2; // Prioritas sedang
+  }
+}
+
+// Subclass JerukRusak - Mewarisi semua dari Buah
+export class JerukRusak extends Buah {
+  private _damageType: string; // Jenis kerusakan
+
+  constructor(id: string, rgbValues: RGBValue, confidence: number = 0.95, damageType: string = 'busuk') {
+    super(id, FruitCategory.DAMAGED, rgbValues, confidence);
+    this._damageType = damageType;
+  }
+
+  get damageType(): string {
+    return this._damageType;
+  }
+
+  // POLYMORPHISM - Override dengan behavior berbeda
+  override getDescription(): string {
+    return `🔴 Jeruk Rusak (ID: ${this.id}) - Jenis kerusakan: ${this._damageType}`;
+  }
+
+  override getSortingAction(): string {
+    return '🗑️ Kirim ke jalur LIMBAH - Tidak layak konsumsi';
+  }
+
+  override getPriority(): number {
+    return 3; // Prioritas rendah
+  }
+}
+
+// ============================================
+// Factory Function - Membuat instance berdasarkan kategori
+// ============================================
+export function createBuah(
+  id: string,
+  category: FruitCategory,
+  rgbValues: RGBValue,
+  confidence: number = 0.95
+): Buah {
+  switch (category) {
+    case FruitCategory.RIPE:
+      return new JerukMatang(id, rgbValues, confidence);
+    case FruitCategory.UNRIPE:
+      return new JerukMentah(id, rgbValues, confidence);
+    case FruitCategory.DAMAGED:
+      return new JerukRusak(id, rgbValues, confidence);
+    default:
+      return new Buah(id, category, rgbValues, confidence);
   }
 }
 
@@ -138,7 +270,6 @@ export class DataLogger {
   // Method untuk menambah log
   addLog(buah: Buah): void {
     this._logs.push(buah);
-    // Hapus log lama jika melebihi batas
     if (this._logs.length > this._maxLogs) {
       this._logs.shift();
     }
@@ -206,7 +337,6 @@ export class DataLogger {
     return Array.from(hourlyMap.values()).sort((a, b) => a.hour.localeCompare(b.hour));
   }
 
-  // Method untuk clear logs
   clearLogs(): void {
     this._logs = [];
   }
@@ -220,15 +350,13 @@ export class Predictor {
   private _coefficients: { a: number; b: number } = { a: 0, b: 0 };
 
   constructor() {
-    this._coefficients = { a: 1.2, b: 5 }; // Default coefficients
+    this._coefficients = { a: 1.2, b: 5 };
   }
 
-  // Method untuk menambah data historis
   addDataPoint(value: number): void {
     this._historicalData.push(value);
   }
 
-  // Method untuk melatih model (simple linear regression)
   train(): void {
     if (this._historicalData.length < 2) return;
 
@@ -249,13 +377,11 @@ export class Predictor {
     }
   }
 
-  // Method untuk prediksi
   predict(timeStep: number): number {
     const prediction = this._coefficients.a * timeStep + this._coefficients.b;
     return Math.max(0, Math.round(prediction));
   }
 
-  // Method untuk mendapatkan prediksi beberapa langkah ke depan
   getPredictions(steps: number): PredictionData[] {
     const currentHour = new Date().getHours();
     const predictions: PredictionData[] = [];
@@ -274,7 +400,6 @@ export class Predictor {
     return predictions;
   }
 
-  // Method untuk mendapatkan akurasi model
   getAccuracy(): number {
     if (this._historicalData.length < 2) return 0;
 
